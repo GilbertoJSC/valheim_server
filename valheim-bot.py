@@ -201,7 +201,7 @@ async def cmd_server(interaction: discord.Interaction):
         )
         embed.add_field(name="Mundo 🌍", value=world, inline=True)
         embed.add_field(name="Status 📶", value=status, inline=True)
-        embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
         await interaction.followup.send(embed=embed)
         return
     code = get_join_code()
@@ -210,7 +210,7 @@ async def cmd_server(interaction: discord.Interaction):
     embed.add_field(name="Status 📶", value=status, inline=True)
     embed.add_field(name="Join code 🔑", value=code or "indisponivel", inline=True)
     embed.add_field(name="Parâmetros ⚙️", value=format_server_params(), inline=False)
-    embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     await interaction.followup.send(embed=embed)
 
 
@@ -228,14 +228,14 @@ async def cmd_status(interaction: discord.Interaction):
         )
         embed.add_field(name="Mundo 🌍", value=world, inline=True)
         embed.add_field(name="Status 📶", value=status, inline=True)
-        embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
         await interaction.followup.send(embed=embed)
         return
     code = get_join_code()
     players = get_players()
     embed = discord.Embed(
         title="⚔️ Valheim Server 🛡️",
-        description="Servidor online! 🟢 Que os deuses te guiem! 🐺",
+        description="Servidor online! Odin won't save you here...! 🐺",
         color=0x57C7E9,
     )
     embed.add_field(name="Endereço 📡", value="mundovanir.duckdns.org:2456", inline=True)
@@ -245,22 +245,21 @@ async def cmd_status(interaction: discord.Interaction):
         embed.add_field(name="Vikings em Valhalla 🪓", value="\n".join(players), inline=False)
     else:
         embed.add_field(name="Valhalla 🏚️", value="Não tem ninguém em casa. Os corvos de Odin vigiam sozinhos... 🐦‍⬛", inline=False)
-    embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     await interaction.followup.send(embed=embed)
 
 
-@tree.command(name="players", description="Lista jogadores online (best-effort)")
+@tree.command(name="players", description="Lista jogadores online")
 async def cmd_players(interaction: discord.Interaction):
     if not await ensure_channel(interaction):
         return
     players = get_players()
     if not players:
-        await interaction.followup.send("Nenhum viking à vista... O salão está vazio. 🏚️ (best-effort)")
+        await interaction.followup.send("Nenhum viking à vista... O salão está vazio.")
         return
     embed = discord.Embed(
         title="🪓 Vikings em Valhalla 🛡️",
-        color=0x57C7E9,
-        description="Detectados no log desde o ultimo start. Pode ser incompleto. 🐺",
+        color=0x57C7E9
     )
     embed.add_field(name="SteamIDs 🆔", value="\n".join(players), inline=False)
     await interaction.followup.send(embed=embed)
