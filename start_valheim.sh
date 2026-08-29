@@ -49,8 +49,10 @@ mkdir -p "$SAVEDIR"
   -world "$WORLD" \
   -password "$PASSWORD" \
   -public 0 \
-  -modifier combat normal \
+  -modifier combat hard \
+  -modifier resources most \
   -modifier raids none \
-  -modifier resources muchmore \
+  -modifier portals casual \
+  -setkey DungeonBuild \
   -crossplay \
   -savedir "$SAVEDIR"
