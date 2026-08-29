@@ -192,10 +192,22 @@ async def cmd_server(interaction: discord.Interaction):
     if not await ensure_channel(interaction):
         return
     name, world = get_name_world()
+    status = service_status()
+    if status != "active":
+        embed = discord.Embed(
+            title=f"Valheim — {name}",
+            description="Servidor offline no momento.",
+            color=0xED4245,
+        )
+        embed.add_field(name="Mundo", value=world, inline=True)
+        embed.add_field(name="Status", value=status, inline=True)
+        embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        await interaction.followup.send(embed=embed)
+        return
     code = get_join_code()
     embed = discord.Embed(title=f"Valheim — {name}", color=0x57C7E9)
     embed.add_field(name="Mundo", value=world, inline=True)
-    embed.add_field(name="Status", value=service_status(), inline=True)
+    embed.add_field(name="Status", value=status, inline=True)
     embed.add_field(name="Join code", value=code or "indisponivel", inline=True)
     embed.add_field(name="Parametros", value=format_server_params(), inline=False)
     embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
