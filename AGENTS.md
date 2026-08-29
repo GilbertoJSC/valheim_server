@@ -39,3 +39,4 @@ Repo de config/deploy do **Valheim Dedicated Server** hospedado em
 - Backup de `.db`/`.fwl` em `~/valheim/saves` antes de updates (1.0 em 09/09/2026).
 - Nunca reiniciar nem parar o `valheim.service` sem perguntar ao usuário antes (mesmo
   que seja para aplicar uma configuração já aprovada).
+- Sugerir mensagem de commit (conventional commits) em toda alteração.
