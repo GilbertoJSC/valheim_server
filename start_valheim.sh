@@ -49,7 +49,7 @@ mkdir -p "$SAVEDIR"
   -world "$WORLD" \
   -password "$PASSWORD" \
   -public 0 \
-  -modifier combat easy \
+  -modifier combat normal \
   -modifier raids none \
   -modifier resources muchmore \
   -crossplay \
