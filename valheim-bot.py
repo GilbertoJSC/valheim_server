@@ -214,6 +214,41 @@ async def cmd_server(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
+@tree.command(name="status", description="Status do servidor: online/offline, endereço, join code e jogadores")
+async def cmd_status(interaction: discord.Interaction):
+    if not await ensure_channel(interaction):
+        return
+    name, world = get_name_world()
+    status = service_status()
+    if status != "active":
+        embed = discord.Embed(
+            title=f"Valheim — {name}",
+            description="Servidor offline no momento.",
+            color=0xED4245,
+        )
+        embed.add_field(name="Mundo", value=world, inline=True)
+        embed.add_field(name="Status", value=status, inline=True)
+        embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        await interaction.followup.send(embed=embed)
+        return
+    code = get_join_code()
+    players = get_players()
+    embed = discord.Embed(
+        title=f"Valheim — {name}",
+        description="Servidor online",
+        color=0x57C7E9,
+    )
+    embed.add_field(name="Endereço", value="mundovanir.duckdns.org:2456", inline=True)
+    embed.add_field(name="Mundo", value=world, inline=True)
+    embed.add_field(name="Join code", value=code or "indisponivel", inline=True)
+    if players:
+        embed.add_field(name="Jogadores online", value="\n".join(players), inline=False)
+    else:
+        embed.add_field(name="Jogadores", value="Não tem ninguém em casa. 🏚️", inline=False)
+    embed.set_footer(text=f"valheim-bot • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    await interaction.followup.send(embed=embed)
+
+
 @tree.command(name="players", description="Lista jogadores online (best-effort)")
 async def cmd_players(interaction: discord.Interaction):
     if not await ensure_channel(interaction):
