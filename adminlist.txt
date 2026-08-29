@@ -1,0 +1,4 @@
+# One SteamID per line (17-digit SteamID64).
+# Admins get kick/ban/save commands (not cheats).
+# Example:
+# 76561198000000000

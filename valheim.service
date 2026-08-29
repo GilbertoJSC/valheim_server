@@ -1,0 +1,16 @@
+[Unit]
+Description=Valheim Dedicated Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/valheim
+ExecStart=%h/valheim/start_valheim.sh
+ExecStartPost=/bin/bash %h/valheim/notify-start.sh
+ExecStopPost=/bin/bash %h/valheim/notify-stop.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

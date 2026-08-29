@@ -1,0 +1,11 @@
+# Secrets / real config — only on server, never committed
+.env
+
+# Valheim runtime / mundos (binários, não versionar)
+saves/
+*.db
+*.fwl
+*.old
+
+# SteamCMD e binários do servidor
+steamcmd/

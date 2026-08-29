@@ -1,0 +1,14 @@
+[Unit]
+Description=Valheim Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/valheim
+ExecStart=%h/valheim/valheim-bot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

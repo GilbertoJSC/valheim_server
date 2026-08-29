@@ -1,0 +1,6 @@
+[Unit]
+Description=DuckDNS IP update
+
+[Service]
+Type=oneshot
+ExecStart=%h/valheim/ddns-update.sh
