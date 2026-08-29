@@ -149,13 +149,43 @@ def format_server_params() -> str:
 
 
 def get_players() -> list:
-    """Best-effort: SteamIDs de jogadores no log desde o último start."""
-    players = []
-    for m in re.finditer(r'Player\s+(\d{6,})', journal(500)):
-        pid = m.group(1)
-        if pid not in players:
-            players.append(pid)
-    return players
+    """Best-effort: jogadores online via log (nomes de personagem, fallback SteamID)."""
+    text = journal(800)
+    names: list[str] = []
+    for m in re.finditer(r'Got character ZDOID from\s+([^\n:]+?)\s*:', text):
+        n = m.group(1).strip().strip('"').strip("'")
+        if n and n not in names:
+            names.append(n)
+    if names:
+        counts = re.findall(r'now\s+(\d+)\s+player\(s\)', text)
+        if counts:
+            try:
+                cur = int(counts[-1])
+                if cur == 0:
+                    return []
+                if len(names) > cur:
+                    return names[-cur:]
+            except Exception:
+                pass
+        return names
+    steam: list[str] = []
+    for m in re.finditer(r'Steam_(\d+)', text):
+        sid = m.group(1)
+        if sid not in steam:
+            steam.append(sid)
+    if steam:
+        counts = re.findall(r'now\s+(\d+)\s+player\(s\)', text)
+        if counts:
+            try:
+                cur = int(counts[-1])
+                if cur == 0:
+                    return []
+                if len(steam) > cur:
+                    return steam[-cur:]
+            except Exception:
+                pass
+        return steam
+    return []
 
 
 @client.event
