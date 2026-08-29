@@ -2,3 +2,4 @@
 # Admins get kick/ban/save commands (not cheats).
 # Example:
 # 76561198000000000
+76561197992989705 #Zeka
