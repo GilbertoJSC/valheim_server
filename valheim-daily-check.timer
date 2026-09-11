@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer diário para verificar atualização do Valheim às 03:00
+After=network-online.target
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=false
+Unit=valheim-daily-check.service
+
+[Install]
+WantedBy=timers.target

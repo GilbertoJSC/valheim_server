@@ -1,0 +1,8 @@
+[Unit]
+Description=Verifica atualização diária do Valheim às 03:00
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/gilberto/valheim/daily_update_check.sh
