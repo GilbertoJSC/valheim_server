@@ -22,7 +22,7 @@ mkdir -p "$SAVEDIR"
 # === Parâmetros opcionais ===
 # Preset (-preset): perfil completo de modifiers.
 #   Valores: normal, casual, easy, hard, hardcore, immersive, hammer
-# PRESET removido — usando modifiers individuais na próxima reinicialização
+# Preset normal + modifiers individuais
 # World modifier (-modifier <nome> <valor>): ajusta uma regra por vez.
 #   combat:       veryeasy, easy, hard, veryhard
 #   deathpenalty: casual, veryeasy, easy, hard, hardcore
@@ -49,10 +49,8 @@ mkdir -p "$SAVEDIR"
   -world "$WORLD" \
   -password "$PASSWORD" \
   -public 0 \
-  -modifier combat hard \
-  -modifier resources most \
+  -preset normal \
+  -modifier resources muchmore \
   -modifier raids none \
-  -modifier portals casual \
-  -setkey DungeonBuild \
   -crossplay \
   -savedir "$SAVEDIR"

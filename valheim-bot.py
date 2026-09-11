@@ -4,11 +4,14 @@
 Comandos slash:
   /server  -> nome, join code, parâmetros rodando e status
   /players -> jogadores online (best-effort via log)
+  /status  -> online/offline, endereço, join code e jogadores
+  /update  -> verifica build e aplica atualização via SteamCMD (para/reinicia o servidor)
 
 Config (~/valheim/.env):
   DISCORD_BOT_TOKEN  (obrigatório)
   DISCORD_GUILD_ID   (opcional; comando aparece na hora se definido)
 """
+import asyncio
 import os
 import re
 import shlex
@@ -22,6 +25,9 @@ ENV_PATH = Path.home() / "valheim" / ".env"
 VALHEIM_DIR = Path.home() / "valheim"
 START_SCRIPT = VALHEIM_DIR / "start_valheim.sh"
 SERVICE = "valheim.service"
+APP_ID = "896660"
+STEAMCMD = Path.home() / "steamcmd" / "steamcmd.sh"
+APP_MANIFEST = VALHEIM_DIR / "steamapps" / f"appmanifest_{APP_ID}.acf"
 
 
 def load_env(path: Path) -> dict:
@@ -146,6 +152,47 @@ def format_server_params() -> str:
         shown = " ".join(p for p in (flag, val) if p)
         lines.append(f"`{shown}` — {desc}")
     return "\n".join(lines)
+
+
+def get_installed_buildid() -> str | None:
+    """Build instalado (appmanifest do SteamCMD)."""
+    try:
+        if APP_MANIFEST.exists():
+            m = re.search(r'"buildid"\s+"(\d+)"', APP_MANIFEST.read_text())
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return None
+
+
+def get_latest_buildid(timeout: int = 30) -> str | None:
+    """Build público mais recente via api.steamcmd.net (com fallback p/ steamcmd)."""
+    import json
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"https://api.steamcmd.net/v1/info/{APP_ID}",
+            headers={"User-Agent": "ValheimBot/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        app = (data.get("data") or {}).get(APP_ID) or {}
+        branches = ((app.get("depots") or {}).get("branches") or {})
+        public = branches.get("public") or {}
+        if public.get("buildid"):
+            return str(public["buildid"])
+    except Exception:
+        pass
+    out = run(
+        f"timeout {timeout} {STEAMCMD} +login anonymous +app_info_update 1 "
+        f"+app_info_print {APP_ID} +quit",
+        timeout=timeout + 10,
+    )
+    m = re.search(r'"public"\s*\{\s*"buildid"\s*"(\d+)"', out)
+    if m:
+        return m.group(1)
+    return None
 
 
 def get_players() -> list:
@@ -292,6 +339,70 @@ async def cmd_players(interaction: discord.Interaction):
         color=0x57C7E9
     )
     embed.add_field(name="SteamIDs 🆔", value="\n".join(players), inline=False)
+    await interaction.followup.send(embed=embed)
+
+
+@tree.command(name="update", description="Verifica se há atualização do servidor e aplica se houver")
+async def cmd_update(interaction: discord.Interaction):
+    if not await ensure_channel(interaction):
+        return
+    installed = get_installed_buildid()
+    await interaction.followup.send(
+        f"🔍 Verificando atualização... (instalado: `{installed or 'desconhecido'}`)"
+    )
+    latest = await asyncio.to_thread(get_latest_buildid)
+    if not latest:
+        await interaction.followup.send(
+            "⚠️ Não consegui consultar o build mais recente (api.steamcmd.net/steamcmd). Tente de novo em alguns minutos."
+        )
+        return
+    if installed and installed == latest:
+        embed = discord.Embed(
+            title="⚔️ Valheim Server 🛡️",
+            description=f"✅ Já está atualizado! Build `{installed}`. 🎉",
+            color=0x57F287,
+        )
+        embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        await interaction.followup.send(embed=embed)
+        return
+    await interaction.followup.send(
+        f"⬇️ Atualização encontrada: `{installed or '?'} → {latest}`. "
+        "Parando o servidor e aplicando via SteamCMD... ⏳"
+    )
+    stop_out = await asyncio.to_thread(run, f"systemctl --user stop {SERVICE}", 60)
+    upd_out = await asyncio.to_thread(
+        run,
+        f"{STEAMCMD} +login anonymous +force_install_dir {VALHEIM_DIR} "
+        f"+app_update {APP_ID} validate +quit",
+        1500,
+    )
+    ok = f"Success! App '{APP_ID}' fully installed" in upd_out
+    downloaded = "downloading" in upd_out.lower() or "staging" in upd_out.lower()
+    await asyncio.to_thread(run, f"systemctl --user start {SERVICE}", 60)
+    new_installed = get_installed_buildid()
+    if ok:
+        await asyncio.sleep(25)
+        code = get_join_code()
+        embed = discord.Embed(
+            title="⚔️ Valheim Server 🛡️",
+            description=(
+                f"✅ Atualizado de `{installed or '?'} → {new_installed or latest}`! 🎉\n"
+                + ("📦 Download aplicado." if downloaded else "📦 Arquivos validados.")
+                + (f"\n🔑 Join code: `{code}`" if code else "")
+            ),
+            color=0x57F287,
+        )
+    else:
+        embed = discord.Embed(
+            title="⚔️ Valheim Server 🛡️",
+            description=(
+                "❌ Falha ao aplicar a atualização via SteamCMD. "
+                f"(instalado: `{new_installed or installed or '?'}` | remoto: `{latest}`)\n"
+                f"```{upd_out[-1500:]}```"
+            ),
+            color=0xED4245,
+        )
+    embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     await interaction.followup.send(embed=embed)
 
 
