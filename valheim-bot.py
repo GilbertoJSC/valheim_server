@@ -6,6 +6,7 @@ Comandos slash:
   /players -> jogadores online (best-effort via log)
   /status  -> online/offline, endereço, join code e jogadores
   /update  -> verifica build e aplica atualização via SteamCMD (para/reinicia o servidor)
+  /wiki    -> busca item na wiki (resumo + receita + links)
 
 Config (~/valheim/.env):
   DISCORD_BOT_TOKEN  (obrigatório)
@@ -28,6 +29,10 @@ SERVICE = "valheim.service"
 APP_ID = "896660"
 STEAMCMD = Path.home() / "steamcmd" / "steamcmd.sh"
 APP_MANIFEST = VALHEIM_DIR / "steamapps" / f"appmanifest_{APP_ID}.acf"
+WIKI_API = "https://valheim.fandom.com/api.php"
+WIKI_PAGE = "https://valheim.fandom.com/wiki"
+WIKI_GG = "https://valheim.wiki.gg/wiki"
+WIKI_UA = "ValheimBot/1.0 (Discord bot; admin mundovanir)"
 
 
 def load_env(path: Path) -> dict:
@@ -235,6 +240,106 @@ def get_players() -> list:
     return []
 
 
+def wiki_api(params: dict, timeout: int = 20) -> dict | list | None:
+    """GET na API MediaWiki da Fandom (a wiki.gg oficial bloqueia bots com 401)."""
+    import json
+    import urllib.parse
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"{WIKI_API}?{urllib.parse.urlencode(params)}",
+            headers={"User-Agent": WIKI_UA},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception:
+        return None
+
+
+def _strip_wiki(text: str) -> str:
+    """Remove templates/links/negrito do wikitext para texto puro."""
+    text = re.sub(r"\{\{[^{}]*\}\}", "", text)
+    text = re.sub(r"\[\[([^|\]#]+)\|([^]]+)\]\]", r"\2", text)
+    text = re.sub(r"\[\[([^]]+)\]\]", r"\1", text)
+    text = text.replace("'''", "").replace("''", "")
+    text = re.sub(r"[ \t]+", " ", text)
+    lines = [ln for ln in text.splitlines() if ln.strip() not in ("*", "-", "•", "")]
+    return "\n".join(lines).strip()
+
+
+def wiki_lookup(query: str) -> dict | None:
+    """Busca item na wiki (Fandom; wiki.gg bloqueia bots): resumo + receita + links."""
+    import urllib.parse
+    q = (query or "").strip()
+    if not q:
+        return None
+    found = wiki_api({"action": "opensearch", "search": q, "limit": 5, "format": "json"})
+    titles: list[str] = []
+    if isinstance(found, list) and len(found) >= 2 and isinstance(found[1], list):
+        titles = [t for t in found[1] if t]
+    if not titles:
+        sr = wiki_api(
+            {"action": "query", "list": "search", "srsearch": q, "srlimit": 5, "format": "json"}
+        )
+        try:
+            titles = [r["title"] for r in sr["query"]["search"]]
+        except Exception:
+            titles = []
+    words = [w for w in q.lower().split() if w]
+    title = next(
+        (t for t in titles
+         if t.lower() == q.lower() or all(w in t.lower() for w in words)),
+        None,
+    )
+    if not title:
+        return None
+    wt = wiki_api(
+        {"action": "query", "prop": "revisions|info", "titles": title, "redirects": 1,
+         "rvprop": "content", "rvslots": "main", "inprop": "url", "format": "json"}
+    )
+    try:
+        pages = (wt or {}).get("query", {}).get("pages", {})
+        page = next(iter(pages.values()))
+        if "missing" in page:
+            return None
+        rev = page["revisions"][0]["slots"]["main"]["*"]
+    except Exception:
+        return None
+    real_title = page.get("title") or title
+    thumb = None
+    m_img = re.search(r"\|\s*image\s*=\s*([^\n|]+)", rev)
+    if m_img and m_img.group(1).strip():
+        fn = m_img.group(1).strip()
+        thumb = (f"{WIKI_PAGE}/Special:FilePath/"
+                 f"{urllib.parse.quote(fn.replace(' ', '_'), safe='')}"
+                 "?width=400")
+    body = rev.split("}}", 1)[-1] if "}}" in rev else rev
+    summary = _strip_wiki(body.split("==", 1)[0])
+    if len(summary) > 900:
+        cut = summary[:900]
+        summary = cut[: cut.rfind(".") + 1 or 900]
+    mats: list[tuple[str, str]] = []
+    m_mat = re.search(r"\|\s*materials\s*1\s*=(.*?)(?:\n\||\n\}\}|\Z)", rev, re.S)
+    if m_mat:
+        for line in m_mat.group(1).splitlines():
+            lm = re.search(r"\[\[([^|\]#]+)(?:\|[^]]*)?\]\]\s*[x×]?\s*(\d+)?", line)
+            if not lm:
+                continue
+            name = lm.group(1).strip()
+            if not name or ":" in name:
+                continue
+            if name not in [n for n, _ in mats]:
+                mats.append((name, lm.group(2) or ""))
+    return {
+        "title": real_title,
+        "summary": summary,
+        "url": page.get("fullurl") or f"{WIKI_PAGE}/{real_title.replace(' ', '_')}",
+        "thumb": thumb,
+        "materials": mats,
+        "gg_url": f"{WIKI_GG}/{urllib.parse.quote(real_title.replace(' ', '_'), safe='')}",
+    }
+
+
 @client.event
 async def on_ready():
     print(f"[bot] logado como {client.user}", flush=True)
@@ -402,6 +507,54 @@ async def cmd_update(interaction: discord.Interaction):
             ),
             color=0xED4245,
         )
+    embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    await interaction.followup.send(embed=embed)
+
+
+@tree.command(name="wiki", description="Busca um item na wiki de Valheim (resumo + receita)")
+@app_commands.describe(item="Nome do item (ex.: bronze axe, smelter, iron sword)")
+async def cmd_wiki(interaction: discord.Interaction, item: str):
+    if not await ensure_channel(interaction):
+        return
+    q = (item or "").strip()
+    if not q:
+        await interaction.followup.send("Informe o nome do item. Ex.: `/wiki item:bronze axe` 📖")
+        return
+    await interaction.followup.send(f"🔍 Consultando a wiki por `{q}`... 📖")
+    info = await asyncio.to_thread(wiki_lookup, q)
+    if not info:
+        await interaction.followup.send(
+            f"❌ Não encontrei `{q}` na wiki. Tente o nome em inglês "
+            "(ex.: `bronze axe`, `smelter`, `iron sword`)."
+        )
+        return
+    summary = info["summary"] or "(sem resumo na wiki)"
+    if len(summary) > 1500:
+        cut = summary[:1500]
+        summary = cut[: cut.rfind(".") + 1 or 1500]
+    import urllib.parse
+    if info["materials"]:
+        lines = []
+        for n, qty in info["materials"][:8]:
+            link = f"{WIKI_PAGE}/{urllib.parse.quote(n.replace(' ', '_'), safe='')}"
+            lines.append(f"• [{n}]({link})" + (f" x{qty}" if qty else ""))
+        recipe = "\n".join(lines)
+    else:
+        recipe = "(receita não identificada — ver seção Crafting na wiki)"
+    embed = discord.Embed(
+        title=f"📖 {info['title']} ⚔️",
+        url=info["url"],
+        description=summary,
+        color=0x57C7E9,
+    )
+    if info["thumb"]:
+        embed.set_thumbnail(url=info["thumb"])
+    embed.add_field(name="🛠️ Receita/Materiais", value=recipe[:1024], inline=False)
+    embed.add_field(
+        name="🔗 Links",
+        value=f"[Fandom]({info['url']}) • [Wiki oficial]({info['gg_url']})",
+        inline=False,
+    )
     embed.set_footer(text=f"Buri • {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     await interaction.followup.send(embed=embed)
 
